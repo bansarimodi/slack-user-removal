@@ -1,3 +1,5 @@
+from flask import Flask, request, jsonify
+
 from detect_removal import scan_event
 from search_email_close import search_contact
 from get_csm_lead import get_csm_from_lead
@@ -5,8 +7,12 @@ from slack_invite import invite_user
 from send_email import send_invite_email
 
 
+app = Flask(__name__)
+
+
 def process_event(event):
 
+    print("\n===== Processing Slack Event =====")
 
     is_removal, user_info, channel_id = scan_event(event)
 
@@ -34,7 +40,7 @@ def process_event(event):
 
     lead_id = contact["lead_id"]
 
-    print("User email:", user_email)
+    print("Lead:", lead_id)
 
     csm_email = get_csm_from_lead(lead_id)
 
@@ -77,17 +83,39 @@ def process_event(event):
         csm_email
     )
 
+    print("===== PROCESS COMPLETE =====")
+
+
+@app.route("/", methods=["GET"])
+def home():
+
+    return "Slack automation running"
+
+
+@app.route("/slack/events", methods=["POST"])
+def slack_events():
+
+    data = request.json
+
+    print("Incoming event:", data)
+
+    # Slack URL verification
+    if data.get("type") == "url_verification":
+
+        return jsonify({
+            "challenge": data.get("challenge")
+        })
+
+    event = data.get("event", {})
+
+    process_event(event)
+
+    return jsonify({"status": "ok"})
+
 
 if __name__ == "__main__":
 
-    test_event = {
-
-        "type": "message",
-
-        "text":
-        "hlopez has removed themselves from this channel",
-        "channel": "C0A16PK3YSW"
-
-    }
-
-    process_event(test_event)
+    app.run(
+        host="0.0.0.0",
+        port=5000
+    )
