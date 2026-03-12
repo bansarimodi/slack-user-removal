@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify
+import os
 
 from detect_removal import scan_event
 from search_email_close import search_contact
@@ -19,27 +20,24 @@ def process_event(event):
     if not is_removal:
 
         print("Not removal event")
-
         return
 
     user_value = user_info["value"]
 
     print("User:", user_value)
-
     print("Channel:", channel_id)
 
     contact = search_contact(user_value)
 
     if not contact:
 
-        print("Contact not found")
-
+        print("Contact not found in Close")
         return
 
     user_email = contact["email"]
-
     lead_id = contact["lead_id"]
 
+    print("User email:", user_email)
     print("Lead:", lead_id)
 
     csm_email = get_csm_from_lead(lead_id)
@@ -47,7 +45,6 @@ def process_event(event):
     if not csm_email:
 
         print("CSM not found")
-
         return
 
     print("CSM:", csm_email)
@@ -97,7 +94,8 @@ def slack_events():
 
     data = request.json
 
-    print("Incoming event:", data)
+    print("\n===== FULL SLACK PAYLOAD =====")
+    print(data)
 
     # Slack URL verification
     if data.get("type") == "url_verification":
@@ -108,14 +106,33 @@ def slack_events():
 
     event = data.get("event", {})
 
+    print("Event type:", event.get("type"))
+
+    # Ignore bot messages
+    if event.get("subtype") == "bot_message":
+
+        return jsonify({"status":"ignored"})
+
+    # Only process relevant events
+    if event.get("type") not in [
+        "member_left_channel",
+        "message"
+    ]:
+
+        print("Event ignored")
+
+        return jsonify({"status":"ignored"})
+
     process_event(event)
 
-    return jsonify({"status": "ok"})
+    return jsonify({"status":"ok"})
 
 
 if __name__ == "__main__":
 
+    port = int(os.environ.get("PORT",5000))
+
     app.run(
         host="0.0.0.0",
-        port=5000
+        port=port
     )
